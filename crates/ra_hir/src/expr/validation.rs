@@ -37,13 +37,7 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
             }
         }
         if let Some(e) = final_expr {
-            let fn_data = FnData::fn_data_query(
-                db,
-                self.func
-            );
-            let expr_ty = &self.infer[e.0];
-            println!("FUNCTION RETURN TYPE: {:?}", fn_data.ret_type());
-            println!("EXPR TYPE: {:?}", expr_ty);
+            self.validate_results_in_tail_expr(e.0, e.1, db);
         }
     }
 
@@ -102,11 +96,64 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
     fn validate_results_in_tail_expr(
         &mut self,
         id: ExprId,
-        _path: &Option<Path>,
-        fields: &[StructLitField],
-        spread: Option<ExprId>,
+        expr: &Expr,
         db: &impl HirDatabase,
     ) {
-        // TODO!
+        let fn_data = FnData::fn_data_query(
+            db,
+            self.func
+        );
+        let expr_ty = &self.infer[id];
+        let ret_ty = fn_data.ret_type();
+        println!("FUNCTION RETURN TYPE: {:?}", ret_ty); // this is a TypeRef
+        println!("FUNCTION TYPE: {:?}", self.func.ty(db)); // this is a Ty
+        println!("EXPR TYPE: {:?}", expr_ty); // this is a Ty
+        // ^^ how do we compare these?
+        //println!("EXPR TYPE NAME: {:?}", expr_ty.to_string());
+
+        // TODO: something better than string matching?
+        if let TypeRef::Path(path) = ret_ty {
+            let last = path.segments.last();
+            if last.is_none() {
+                return;
+            }
+            let last = last.unwrap();
+            if last.name.to_string() == "Result" {
+                let args = &last.args_and_bindings;
+                if args.is_none() {
+                    return;
+                }
+                let args = &args.as_ref().unwrap().args;
+                if args.len() < 1 {
+                    return;
+                }
+                let first_arg = &args[0];
+                println!("FIRST ARG {:?}", first_arg);
+            }
+        }
+
+        // let source_map = self.func.body_source_map(db);
+        // let file_id = self.func.source(db).file_id;
+        // let parse = db.parse(file_id.original_file(db));
+        // let source_file = parse.tree();
+        // if let Some(field_list_node) = source_map
+        //     .expr_syntax(id)
+        //     .map(|ptr| ptr.to_node(source_file.syntax()))
+        //     .and_then(StructLit::cast)
+        //     .and_then(|lit| lit.named_field_list())
+        // {
+        //     let field_list_ptr = AstPtr::new(&field_list_node);
+        //     self.sink.push(MissingFields {
+        //         file: file_id,
+        //         field_list: field_list_ptr,
+        //         missed_fields,
+        //     })
+        // }
+
+        // self.sink.push(MissingFields {
+        //     file: file_id,
+        //     field_list: field_list_ptr,
+        //     missed_fields,
+        // })
     }
 }

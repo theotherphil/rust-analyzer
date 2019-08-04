@@ -239,6 +239,16 @@ mod tests {
         check_apply_diagnostic_fix(before, after);
     }
 
+    // #[test]
+    // fn test_wrap_return_type_not_applicable() {
+    //     let content = r#"
+    //         fn foo() -> Result<String, i32> {
+    //             0
+    //         }
+    //     "#;
+    //     check_no_diagnostic(content);
+    // }
+
     #[test]
     fn test_fill_struct_fields_empty() {
         let before = r"
