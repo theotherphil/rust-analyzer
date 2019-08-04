@@ -219,6 +219,27 @@ mod tests {
     }
 
     #[test]
+    fn test_wrap_return_type() {
+        let before = r#"
+            fn div(x: i32, y: i32) -> Result<i32, String> {
+                if y == 0 {
+                    return Err("div by zero".into());
+                }
+                x / y
+            }
+        "#;
+        let after = r#"
+            fn div(x: i32, y: i32) -> Result<i32, String> {
+                if y == 0 {
+                    return Err("div by zero".into());
+                }
+                Ok(x / y)
+            }
+        "#;
+        check_apply_diagnostic_fix(before, after);
+    }
+
+    #[test]
     fn test_fill_struct_fields_empty() {
         let before = r"
             struct TestStruct {

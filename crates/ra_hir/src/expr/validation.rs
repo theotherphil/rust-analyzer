@@ -3,13 +3,13 @@ use std::sync::Arc;
 
 use ra_syntax::ast::{AstNode, StructLit};
 
-use super::{Expr, ExprId, StructLitField};
+use super::{Expr, ExprId, StructLitField, TypeRef};
 use crate::{
     adt::AdtDef,
     diagnostics::{DiagnosticSink, MissingFields},
     expr::AstPtr,
     ty::InferenceResult,
-    Function, HasSource, HirDatabase, Name, Path,
+    FnData, Function, HasSource, HirDatabase, Name, Path
 };
 
 pub(crate) struct ExprValidator<'a, 'b: 'a> {
@@ -29,10 +29,21 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
 
     pub(crate) fn validate_body(&mut self, db: &impl HirDatabase) {
         let body = self.func.body(db);
+        let mut final_expr = None;
         for e in body.exprs() {
+            final_expr = Some(e);
             if let (id, Expr::StructLit { path, fields, spread }) = e {
                 self.validate_struct_literal(id, path, fields, *spread, db);
             }
+        }
+        if let Some(e) = final_expr {
+            let fn_data = FnData::fn_data_query(
+                db,
+                self.func
+            );
+            let expr_ty = &self.infer[e.0];
+            println!("FUNCTION RETURN TYPE: {:?}", fn_data.ret_type());
+            println!("EXPR TYPE: {:?}", expr_ty);
         }
     }
 
@@ -86,5 +97,16 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
                 missed_fields,
             })
         }
+    }
+
+    fn validate_results_in_tail_expr(
+        &mut self,
+        id: ExprId,
+        _path: &Option<Path>,
+        fields: &[StructLitField],
+        spread: Option<ExprId>,
+        db: &impl HirDatabase,
+    ) {
+        // TODO!
     }
 }
