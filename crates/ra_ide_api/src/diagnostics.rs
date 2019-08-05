@@ -48,6 +48,7 @@ pub(crate) fn diagnostics(db: &RootDatabase, file_id: FileId) -> Vec<Diagnostic>
         })
     })
     .on::<hir::diagnostics::UnresolvedModule, _>(|d| {
+        println!("UNRESOLVED MODULE!!");
         let source_root = db.file_source_root(d.file().original_file(db));
         let create_file = FileSystemEdit::CreateFile { source_root, path: d.candidate.clone() };
         let fix = SourceChange::file_system_edit("create module", create_file);
@@ -59,6 +60,7 @@ pub(crate) fn diagnostics(db: &RootDatabase, file_id: FileId) -> Vec<Diagnostic>
         })
     })
     .on::<hir::diagnostics::MissingFields, _>(|d| {
+        println!("MISSING FIELDS!!");
         let node = d.ast(db);
         let mut ast_editor = AstEditor::new(node);
         for f in d.missed_fields.iter() {
@@ -75,7 +77,11 @@ pub(crate) fn diagnostics(db: &RootDatabase, file_id: FileId) -> Vec<Diagnostic>
             severity: Severity::Error,
             fix: Some(fix),
         })
+    })
+    .on::<hir::diagnostics::MissingOkInTailExpr, _>(|d| {
+        println!("GOT ONE!!");
     });
+    println!("GOT A SINK");
     if let Some(m) = source_binder::module_from_file_id(db, file_id) {
         m.diagnostics(db, &mut sink);
     };

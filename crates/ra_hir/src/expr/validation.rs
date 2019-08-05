@@ -6,11 +6,12 @@ use ra_syntax::ast::{AstNode, StructLit};
 use super::{Expr, ExprId, StructLitField};
 use crate::{
     adt::AdtDef,
-    diagnostics::{DiagnosticSink, MissingFields},
+    diagnostics::{DiagnosticSink, MissingFields, MissingOkInTailExpr},
     expr::AstPtr,
     ty::{InferenceResult, Ty, TypeCtor},
     Function, HasSource, HirDatabase, Name, Path
 };
+use ra_syntax::ast::{self};
 
 pub(crate) struct ExprValidator<'a, 'b: 'a> {
     func: Function,
@@ -37,7 +38,7 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
             }
         }
         if let Some(e) = final_expr {
-            self.validate_results_in_tail_expr(e.0, e.1, db);
+            self.validate_results_in_tail_expr(e.0, db);
         }
     }
 
@@ -96,7 +97,6 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
     fn validate_results_in_tail_expr(
         &mut self,
         id: ExprId,
-        expr: &Expr,
         db: &impl HirDatabase,
     ) {
         let expr_ty = &self.infer[id];
@@ -118,6 +118,17 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
         let params = &ret.parameters;
         if params.len() == 2 && &params[0] == expr_ty {
             println!("WOOOOO");
+            let source_map = self.func.body_source_map(db);
+            let file_id = self.func.source(db).file_id;
+            let parse = db.parse(file_id.original_file(db));
+            let source_file = parse.tree();
+            let node = source_map.expr_syntax(id).unwrap().to_node(source_file.syntax());
+            let ast_expr = ast::Expr::cast(node).unwrap();
+            let file_id = self.func.source(db).file_id;
+            self.sink.push(MissingOkInTailExpr {
+                file: file_id,
+                expr: AstPtr::new(&ast_expr)
+            });
         }
     }
 }
