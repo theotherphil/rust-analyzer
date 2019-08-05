@@ -3,13 +3,13 @@ use std::sync::Arc;
 
 use ra_syntax::ast::{AstNode, StructLit};
 
-use super::{Expr, ExprId, StructLitField, TypeRef};
+use super::{Expr, ExprId, StructLitField};
 use crate::{
     adt::AdtDef,
     diagnostics::{DiagnosticSink, MissingFields},
     expr::AstPtr,
-    ty::InferenceResult,
-    FnData, Function, HasSource, HirDatabase, Name, Path
+    ty::{InferenceResult, Ty, TypeCtor},
+    Function, HasSource, HirDatabase, Name, Path
 };
 
 pub(crate) struct ExprValidator<'a, 'b: 'a> {
@@ -99,61 +99,25 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
         expr: &Expr,
         db: &impl HirDatabase,
     ) {
-        let fn_data = FnData::fn_data_query(
-            db,
-            self.func
-        );
         let expr_ty = &self.infer[id];
-        let ret_ty = fn_data.ret_type();
-        println!("FUNCTION RETURN TYPE: {:?}", ret_ty); // this is a TypeRef
-        println!("FUNCTION TYPE: {:?}", self.func.ty(db)); // this is a Ty
-        println!("EXPR TYPE: {:?}", expr_ty); // this is a Ty
-        // ^^ how do we compare these?
-        //println!("EXPR TYPE NAME: {:?}", expr_ty.to_string());
-
-        // TODO: something better than string matching?
-        if let TypeRef::Path(path) = ret_ty {
-            let last = path.segments.last();
-            if last.is_none() {
-                return;
-            }
-            let last = last.unwrap();
-            if last.name.to_string() == "Result" {
-                let args = &last.args_and_bindings;
-                if args.is_none() {
-                    return;
-                }
-                let args = &args.as_ref().unwrap().args;
-                if args.len() < 1 {
-                    return;
-                }
-                let first_arg = &args[0];
-                println!("FIRST ARG {:?}", first_arg);
-            }
+        let func_ty = self.func.ty(db);
+        let func_sig = func_ty.callable_sig(db).unwrap();
+        let ret = func_sig.ret();
+        let ret = match ret {
+            Ty::Apply(t) => t,
+            _ => return
+        };
+        let ret_enum = match ret.ctor {
+            TypeCtor::Adt(AdtDef::Enum(e)) => e,
+            _ => return
+        };
+        let enum_name = ret_enum.name(db);
+        if enum_name.is_none() || enum_name.unwrap().to_string() != "Result" {
+            return;
         }
-
-        // let source_map = self.func.body_source_map(db);
-        // let file_id = self.func.source(db).file_id;
-        // let parse = db.parse(file_id.original_file(db));
-        // let source_file = parse.tree();
-        // if let Some(field_list_node) = source_map
-        //     .expr_syntax(id)
-        //     .map(|ptr| ptr.to_node(source_file.syntax()))
-        //     .and_then(StructLit::cast)
-        //     .and_then(|lit| lit.named_field_list())
-        // {
-        //     let field_list_ptr = AstPtr::new(&field_list_node);
-        //     self.sink.push(MissingFields {
-        //         file: file_id,
-        //         field_list: field_list_ptr,
-        //         missed_fields,
-        //     })
-        // }
-
-        // self.sink.push(MissingFields {
-        //     file: file_id,
-        //     field_list: field_list_ptr,
-        //     missed_fields,
-        // })
+        let params = &ret.parameters;
+        if params.len() == 2 && &params[0] == expr_ty {
+            println!("WOOOOO");
+        }
     }
 }

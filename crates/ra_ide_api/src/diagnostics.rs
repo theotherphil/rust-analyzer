@@ -221,6 +221,9 @@ mod tests {
     #[test]
     fn test_wrap_return_type() {
         let before = r#"
+            enum Result<T, E> { Ok(T), Err(E) }
+            struct String { }
+
             fn div(x: i32, y: i32) -> Result<i32, String> {
                 if y == 0 {
                     return Err("div by zero".into());
