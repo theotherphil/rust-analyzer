@@ -48,7 +48,6 @@ pub(crate) fn diagnostics(db: &RootDatabase, file_id: FileId) -> Vec<Diagnostic>
         })
     })
     .on::<hir::diagnostics::UnresolvedModule, _>(|d| {
-        println!("UNRESOLVED MODULE!!");
         let source_root = db.file_source_root(d.file().original_file(db));
         let create_file = FileSystemEdit::CreateFile { source_root, path: d.candidate.clone() };
         let fix = SourceChange::file_system_edit("create module", create_file);
@@ -60,7 +59,6 @@ pub(crate) fn diagnostics(db: &RootDatabase, file_id: FileId) -> Vec<Diagnostic>
         })
     })
     .on::<hir::diagnostics::MissingFields, _>(|d| {
-        println!("MISSING FIELDS!!");
         let node = d.ast(db);
         let mut ast_editor = AstEditor::new(node);
         for f in d.missed_fields.iter() {
@@ -79,9 +77,18 @@ pub(crate) fn diagnostics(db: &RootDatabase, file_id: FileId) -> Vec<Diagnostic>
         })
     })
     .on::<hir::diagnostics::MissingOkInTailExpr, _>(|d| {
-        println!("GOT ONE!!");
+        let node = d.ast(db);
+        let mut builder = TextEditBuilder::default();
+        let replacement = format!("Ok({})", node.syntax().text());
+        builder.replace(node.syntax().text_range(), replacement);
+        let fix = SourceChange::source_file_edit_from("wrap with ok", file_id, builder.finish());
+        res.borrow_mut().push(Diagnostic {
+            range: d.highlight_range(),
+            message: d.message(),
+            severity: Severity::Error,
+            fix: Some(fix),
+        })
     });
-    println!("GOT A SINK");
     if let Some(m) = source_binder::module_from_file_id(db, file_id) {
         m.diagnostics(db, &mut sink);
     };
@@ -238,6 +245,9 @@ mod tests {
             }
         "#;
         let after = r#"
+            enum Result<T, E> { Ok(T), Err(E) }
+            struct String { }
+
             fn div(x: i32, y: i32) -> Result<i32, String> {
                 if y == 0 {
                     return Err("div by zero".into());
@@ -248,15 +258,15 @@ mod tests {
         check_apply_diagnostic_fix(before, after);
     }
 
-    // #[test]
-    // fn test_wrap_return_type_not_applicable() {
-    //     let content = r#"
-    //         fn foo() -> Result<String, i32> {
-    //             0
-    //         }
-    //     "#;
-    //     check_no_diagnostic(content);
-    // }
+    #[test]
+    fn test_wrap_return_type_not_applicable() {
+        let content = r#"
+            fn foo() -> Result<String, i32> {
+                0
+            }
+        "#;
+        check_no_diagnostic(content);
+    }
 
     #[test]
     fn test_fill_struct_fields_empty() {
